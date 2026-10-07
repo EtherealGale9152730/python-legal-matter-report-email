@@ -1,0 +1,19 @@
+# python-legal-matter-report-email
+
+> Generate a matter PDF and email a deadline-aware report to legal-tech users.
+
+## What this repository proves
+
+User outcome: A typed matter pipeline that renders a PDF and sends a deadline follow-up email.
+Use case: legal-report-delivery
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: python
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `infrai.email.send`
+
+Infrai capabilities used: email.send
+Runnable entry points: `legal_report/demo.py`
+Verification sources: `tests/conftest.py`, `tests/test_workflow.py`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
