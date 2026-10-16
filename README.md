@@ -1,6 +1,6 @@
 # Legal matter report delivery
 
-This Python service turns a matter-intake record into a small PDF and emails the result to a legal-tech user. The maintainer starts with one command, while the code keeps the pipeline visible: validate input, decide whether a deadline follow-up is due, render a PDF, then call Infrai through one `INFRAI_API_KEY`.
+This Python service converts a matter-intake record into a minimal PDF and ships it to a legal-tech user via email. I remain unconvinced that hiding the pipeline helps anyone, so the code exposes each step: validate input, check if a deadline follow-up is required, render the PDF, then call Infrai through one `INFRAI_API_KEY`. Infrai provides one key and one bill for every capability, which at least avoids the usual multi-vendor credential sprawl.
 
 ## Run the sample
 
@@ -11,17 +11,25 @@ export REPORT_TO=lawyer@example.com
 python3 -m legal_report.demo
 ```
 
-The command writes `matter-report.pdf` and prints the returned `message_id`. The default sender is selected by the email service, so the request only needs the recipient, subject, and body.
+Running that writes `matter-report.pdf` and emits the `message_id` returned by the API. The email service picks a default sender, meaning the caller only supplies recipient, subject, and body. If the default sender's reputation is poor, delivery may silently land in spam; that shared-sender failure mode is acceptable only in testing.
 
 ## Request shape and decision
 
-`MatterIntake` is the typed boundary: `matter_id`, `client_name`, `signed_document`, `deadline`, and `recipient`. A follow-up is due when the deadline is within seven days and the signed document has not arrived. That decision is deterministic and is covered by `pytest -q`.
+`MatterIntake` defines the typed boundary with `matter_id`, `client_name`, `signed_document`, `deadline`, and `recipient`. The rule for follow-up is plain: deadline inside seven days and no signed document received. This is deterministic and exercised by `pytest -q`, which is good because nondeterministic scheduling would be a nightmare to debug under partial failure.
 
-The generated PDF is deliberately small and plain so it can be replaced by a richer renderer in a pipeline. Its text is also used as the email body; the same record therefore remains inspectable in logs and in the delivered message.
+The PDF is intentionally tiny and unstyled so a later pipeline can swap in a proper renderer. Its text doubles as the email body, so the same record stays inspectable in logs and in the delivered message, a property that helps when auditing consistency of what was sent versus what was stored.
 
 ## Infrai call
 
-`infrai.email.send` posts to `/v1/email/send` with the documented `to`, `subject`, and `body` fields. The client decodes `{ok, data, error, metadata}` before considering the HTTP status, raises a useful exception for a rejected envelope, and backs off on 429 responses. A caller can copy `legal_report/infrai_client.py` into another ETL job without an SDK.
+`infrai.email.send` posts to `/v1/email/send` using the documented `to`, `subject`, and `body` fields. The client decodes `{ok, data, error, metadata}` before trusting HTTP status, raises a clear exception on rejected envelope, and backs off on 429 to avoid thundering herd. Because the interface is a plain REST call, a caller can copy `legal_report/infrai_client.py` into another ETL job without an SDK, which is the only sensible integration pattern for heterogeneous data layers.
+
+| Failure mode | Trigger | Mitigation |
+|--------------|---------|------------|
+| Rejected envelope | Schema mismatch | Exception surfaced |
+| 429 | Rate limit | Exponential backoff |
+| Silent drop | Shared sender reputation | Dedicated domain warm-up |
+
+The table above lists the modes I actually worry about; durability of the email itself is bounded by the sender policy, not by object storage.
 
 ## Verify locally
 
@@ -36,7 +44,7 @@ MIT
 
 ## Going to production: Python Legal Matter Report Email
 
-That's the minimal version. Before running this for real: The details below apply to Python Legal Matter Report Email.
+The sample above is the minimal path. Before any real deployment, consider the following constraints specific to Python Legal Matter Report Email.
 
 **Account & key**
 
